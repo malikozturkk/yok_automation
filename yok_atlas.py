@@ -71,9 +71,17 @@ for i in range(len(panels)):
                 except:
                     pass
 
-                sidebar_link = driver.find_element(By.XPATH, "//a[@href='#c1000_1']")
+                sidebar_link = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, "//a[@href='#c1000_1']"))
+                )
                 sidebar_link.click()
-                time.sleep(1)
+                
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, "c1000_1"))
+                )
+                WebDriverWait(driver, 10).until(
+                    lambda d: len(d.find_element(By.ID, "c1000_1").find_elements(By.TAG_NAME, "td")) >= 23
+                )
 
                 table_section = driver.find_element(By.ID, "c1000_1")
                 rows = table_section.find_elements(By.TAG_NAME, "tr")
@@ -90,11 +98,11 @@ for i in range(len(panels)):
 
                 yearly_data.append({
                     "year": year,
-                    "quota": parse_int(cells[8]),  
-                    "base_score": parse_float(cells[16]), 
+                    "quota": parse_int(cells[8]),
+                    "base_score": parse_float(cells[16]),
                     "top_score": parse_float(cells[20]),
-                    "base_rank": parse_int(cells[18]), 
-                    "top_rank": parse_int(cells[21]),  
+                    "base_rank": parse_int(cells[18]),
+                    "top_rank": parse_int(cells[21]),
                     "placement": parse_int(cells[11])
                 })
 
