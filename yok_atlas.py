@@ -69,6 +69,12 @@ for index, detail_url in enumerate(panel_links):
             year_button.click()
             time.sleep(2)
 
+            if "File not found" in driver.page_source:
+                print(f"{year} yılı için veri yok (File not found). Sonraki yıla geçiliyor.")
+                driver.back() 
+                time.sleep(2)
+                continue
+
             try:
                 modal = driver.find_element(By.CLASS_NAME, "featherlight")
                 if modal.is_displayed():
