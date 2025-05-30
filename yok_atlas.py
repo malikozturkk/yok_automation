@@ -2,96 +2,116 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import json
 import time
 
-driver = webdriver.Chrome()
+def parse_int(val):
+    try:
+        return int(val.replace('.', '').replace(',', '').strip())
+    except:
+        return None
 
+def parse_float(val):
+    try:
+        return float(val.replace(',', '.').strip())
+    except:
+        return None
+
+driver = webdriver.Chrome()
 driver.get("https://yokatlas.yok.gov.tr/lisans-univ.php?u=2001")
 time.sleep(3)
 
 panels = driver.find_elements(By.CLASS_NAME, "panel-heading")
 
+final_result = []
+
 for i in range(len(panels)):
     panels = driver.find_elements(By.CLASS_NAME, "panel-heading")
-    
     try:
         panels[i].click()
-        time.sleep(3)
+        time.sleep(2)
 
         detail_url = driver.current_url
         print(f"Gidilen detay sayfası: {detail_url}")
 
         try:
             close_button = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.CLASS_NAME, 'featherlight-close'))
+                EC.presence_of_element_located((By.CLASS_NAME, 'featherlight-close'))
             )
             close_button.click()
-            print("Modal kapatıldı.")
+            time.sleep(1)
         except:
-            print("Kapatılacak modal bulunamadı, devam ediliyor...")
+            pass
 
-        try:
-            button_2022 = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//a[contains(., '2022 Yılı')]"))
-            )
-            button_2022.click()
-        except:
-            print("2022 Yılı linki bulunamadı, atlanıyor...")
-            continue
+        yearly_data = []
 
-        sidebar_link = driver.find_element(By.XPATH, "//a[@href='#c1000_1']")
-        sidebar_link.click()
-        time.sleep(2)
-
-        table = driver.find_element(By.ID, "c1000_1")
-        rows = table.find_elements(By.TAG_NAME, "tr")
-
-        data = {}
-        for row in rows:
+        for year in [2022, 2023, 2024]:
             try:
-                tds = row.find_elements(By.TAG_NAME, "td")
-                key = tds[0].text.strip()
-                value = tds[1].text.strip()
-                data[key] = value
-            except:
-                continue
+                try:
+                    modal = driver.find_element(By.CLASS_NAME, "featherlight")
+                    if modal.is_displayed():
+                        close_button = driver.find_element(By.CLASS_NAME, "featherlight-close")
+                        close_button.click()
+                        time.sleep(1)
+                except:
+                    pass
 
-        def parse_int(val):
-            try:
-                return int(val.replace('.', '').replace(',', '').strip())
-            except:
-                return None
+                year_button = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, f"//a[contains(., '{year} Yılı')]"))
+                )
+                year_button.click()
+                time.sleep(2)
 
-        def parse_float(val):
-            try:
-                return float(val.replace(',', '.').strip())
-            except:
-                return None
+                try:
+                    modal = driver.find_element(By.CLASS_NAME, "featherlight")
+                    if modal.is_displayed():
+                        close_button = driver.find_element(By.CLASS_NAME, "featherlight-close")
+                        close_button.click()
+                        time.sleep(1)
+                except:
+                    pass
 
-        result = {
-            "yearly_data": [
-                {
-                    "year": 2022,
-                    "quota": parse_int(data.get("Toplam Kontenjan", "0")),
-                    "placement": parse_int(data.get("Toplam Yerleşen", "0")),
-                    "base_score": parse_float(data.get("0,12 Katsayı ile Yerleşen Son Kişinin Puanı*", "0")),
-                    "top_score": parse_float(data.get("2022 Tavan Puan(0,12)*", "0")),
-                    "base_rank": parse_int(data.get("0,12 Katsayı ile Yerleşen Son Kişinin Başarı Sırası*", "0")),
-                    "top_rank": parse_int(data.get("2022 Tavan Başarı Sırası(0,12)*", "0")),
-                }
-            ]
-        }
+                sidebar_link = driver.find_element(By.XPATH, "//a[@href='#c1000_1']")
+                sidebar_link.click()
+                time.sleep(1)
 
-        print("-----")
-        print(result)
-        print("-----")
+                table_section = driver.find_element(By.ID, "c1000_1")
+                rows = table_section.find_elements(By.TAG_NAME, "tr")
 
-        driver.back()
-        time.sleep(3)
+                cells = []
+                for row in rows:
+                    tds = row.find_elements(By.TAG_NAME, "td")
+                    if len(tds) >= 2:
+                        cells.append(tds[1].text.strip())
+
+                if len(cells) < 23:
+                    print(f"{year} yılı için yeterli veri yok, atlanıyor.")
+                    continue
+
+                yearly_data.append({
+                    "year": year,
+                    "quota": parse_int(cells[8]),  
+                    "base_score": parse_float(cells[16]), 
+                    "top_score": parse_float(cells[20]),
+                    "base_rank": parse_int(cells[18]), 
+                    "top_rank": parse_int(cells[21]),  
+                    "placement": parse_int(cells[11])
+                })
+
+                print(f"{year} verileri başarıyla işlendi.")
+
+            except Exception as e:
+                print(f"{year} yılı için hata: {str(e)}")
+
+        print("Toplanan yearly_data:")
+        print(json.dumps(yearly_data, indent=2, ensure_ascii=False))
+
+        final_result.append({
+            "detail_url": detail_url,
+            "yearly_data": yearly_data
+        })
 
     except Exception as e:
-        print(f"Hata oluştu: {e}")
-        driver.back()
-        time.sleep(3)
+        print(f"Panel tıklama hatası: {str(e)}")
 
 driver.quit()
