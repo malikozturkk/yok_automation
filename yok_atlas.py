@@ -50,6 +50,27 @@ for index, detail_url in enumerate(panel_links):
     except:
         pass
 
+    try:
+        title_element = driver.find_element(By.CSS_SELECTOR, "div.panel.panel-primary h2.panel-title.pull-left")
+        raw_title = title_element.text.strip()
+        if "Program :" in raw_title:
+            name = raw_title.split(" - ", 1)[-1].strip()
+        else:
+            name = raw_title
+    except Exception as e:
+        print(f"Name verisi alınamadı: {str(e)}")
+        name = ""
+
+    try:
+        faculty_element = driver.find_element(By.CSS_SELECTOR, "div.panel[style*='background-color:#e1e1e1;'] h3.panel-title.pull-left")
+        full_text = faculty_element.text.strip()
+
+        faculty = full_text.split(":", 1)[1].strip() if ":" in full_text else full_text
+    except Exception as e:
+        print(f"Faculty verisi alınamadı: {str(e)}")
+        faculty = ""
+
+
     yearly_data = []
 
     for year in [2022, 2023, 2024]:
@@ -124,12 +145,16 @@ for index, detail_url in enumerate(panel_links):
         except Exception as e:
             print(f"{year} yılı için hata: {str(e)}")
 
-    print("Toplanan yearly_data:")
-    print(json.dumps(yearly_data, indent=2, ensure_ascii=False))
-
     final_result.append({
-        "detail_url": detail_url,
+        "name": name,
+        "faculty": faculty,
+        "language": "#",
+        "degree_level": "licence",
+        "score_type": "#",
+        "education_type": "#",
         "yearly_data": yearly_data
     })
+
+    print(json.dumps(final_result, indent=2, ensure_ascii=False))
     
 driver.quit()
