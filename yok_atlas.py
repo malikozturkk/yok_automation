@@ -4,6 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import json
 import time
+import re
 
 def parse_int(val):
     try:
@@ -16,6 +17,34 @@ def parse_float(val):
         return float(val.replace(',', '.').strip())
     except:
         return None
+    
+
+score_type_map = {
+    "SAY": "numerical",
+    "EA": "equal_weight",
+    "SÖZ": "verbal",
+    "TYT": "tyt"
+}
+
+def extract_language_and_clean_name(name: str):
+    language = "Türkçe" 
+    language_list = ["İngilizce", "Almanca", "Fransızca", "Rusça", "İtalyanca", "Arapça"]
+    for lang in language_list:
+        if f"({lang})" in name:
+            language = lang
+            name = name.replace(f"({lang})", "").strip()
+            break
+    name = re.sub(r'\s+', ' ', name)
+    return name, language
+
+def extract_education_type(name: str):
+    if "(İÖ)" in name:
+        return "second_education"
+    elif "(Uzaktan Öğretim)" in name:
+        return "distance"
+    else:
+        return "formal"
+    
 
 driver = webdriver.Chrome()
 driver.get("https://yokatlas.yok.gov.tr/lisans-univ.php?u=2001")
@@ -39,8 +68,6 @@ for index, detail_url in enumerate(panel_links):
     driver.get(detail_url)
     time.sleep(2)
 
-    print(f"Gidilen detay sayfası: {detail_url}")
-
     try:
         close_button = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CLASS_NAME, 'featherlight-close'))
@@ -57,9 +84,25 @@ for index, detail_url in enumerate(panel_links):
             name = raw_title.split(" - ", 1)[-1].strip()
         else:
             name = raw_title
+
+        name, language = extract_language_and_clean_name(name)
+        education_type = extract_education_type(name)
+        
     except Exception as e:
-        print(f"Name verisi alınamadı: {str(e)}")
+        print(f"Name verisi alınamadı: {str(e)} ({detail_url})")
         name = ""
+        language = "Türkçe"
+        education_type = "formal"
+
+    try:
+        score_type_element = driver.find_element(By.CSS_SELECTOR, "div.panel.panel-primary h3.panel-title.pull-right")
+        raw_score_type = score_type_element.text.strip()
+        match = re.search(r"Puan Türü:\s*(\w+)", raw_score_type)
+        score_type_code = match.group(1) if match else ""
+        score_type = score_type_map.get(score_type_code, "") 
+    except Exception as e:
+        print(f"Score type alınamadı: {str(e)} ({detail_url})")
+        score_type = ""
 
     try:
         faculty_element = driver.find_element(By.CSS_SELECTOR, "div.panel[style*='background-color:#e1e1e1;'] h3.panel-title.pull-left")
@@ -67,7 +110,7 @@ for index, detail_url in enumerate(panel_links):
 
         faculty = full_text.split(":", 1)[1].strip() if ":" in full_text else full_text
     except Exception as e:
-        print(f"Faculty verisi alınamadı: {str(e)}")
+        print(f"Faculty verisi alınamadı: {str(e)} ({detail_url})")
         faculty = ""
 
 
@@ -91,7 +134,7 @@ for index, detail_url in enumerate(panel_links):
             time.sleep(2)
 
             if "File not found" in driver.page_source:
-                print(f"{year} yılı için veri yok (File not found). Sonraki yıla geçiliyor.")
+                print(f"{year} yılı için veri yok (File not found). Sonraki yıla geçiliyor. ({detail_url})")
                 driver.back() 
                 time.sleep(2)
                 continue
@@ -127,7 +170,7 @@ for index, detail_url in enumerate(panel_links):
                     cells.append(tds[1].text.strip())
 
             if len(cells) < 23:
-                print(f"{year} yılı için yeterli veri yok, atlanıyor.")
+                print(f"{year} yılı için yeterli veri yok, atlanıyor. ({detail_url})")
                 continue
 
             yearly_data.append({
@@ -140,21 +183,21 @@ for index, detail_url in enumerate(panel_links):
                 "placement": parse_int(cells[11])
             })
 
-            print(f"{year} verileri başarıyla işlendi.")
-
         except Exception as e:
-            print(f"{year} yılı için hata: {str(e)}")
+            print(f"{year} yılı için hata: {str(e)} ({detail_url})")
 
     final_result.append({
         "name": name,
         "faculty": faculty,
-        "language": "#",
+        "language": language,
+        "duration": "4 yıl",
         "degree_level": "licence",
-        "score_type": "#",
-        "education_type": "#",
+        "score_type": score_type,
+        "education_type": education_type,
         "yearly_data": yearly_data
     })
-
-    print(json.dumps(final_result, indent=2, ensure_ascii=False))
+    
+    with open("acibadem.json", "w", encoding="utf-8") as f:
+        json.dump(final_result, f, ensure_ascii=False, indent=2)
     
 driver.quit()
